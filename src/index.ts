@@ -42,14 +42,16 @@ bot.on(":text", async (ctx) => {
   const isReply = ctx.message?.reply_to_message?.from?.id === ctx.me?.id;
 
   const [firstWord, secondWord, ...wordList] = rawText.split(' ');
-  if (!activationWords.has(firstWord.replace(/[.|,|!|?]/g, '')) && !isReply) return;
+  const clearFirstWord = firstWord.toLowerCase().replace(/[.|,|!|?]/g, '');
+
+  if (!activationWords.has(clearFirstWord) && !isReply) return;
 
   ctx.replyWithChatAction("typing");
 
   const key = `${ctx.message?.reply_to_message?.message_id}:${ctx.message?.chat?.id}`;
   const messages = cache.has(key) ? [...cache.get(key)!] : [defaultMessages];
 
-const clearSecondWord = secondWord.replace(/[.|,|!|?]/g, '');
+  const clearSecondWord = secondWord.toLowerCase().replace(/[.|,|!|?]/g, '');
 
   const text = isReply ? rawText : [...(hackMap.has(clearSecondWord) ? [] :[secondWord]), ...wordList].join(' ');
 
