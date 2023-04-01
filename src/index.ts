@@ -33,8 +33,7 @@ bot.on(":text", async (ctx) => {
   const isReply = ctx.message?.reply_to_message?.from?.id === ctx.me?.id;
 
   const [firstWord, ...wordList] = rawText.split(' ');
-
-  if (!activationWords.has(firstWord) && !isReply) return;
+  if (!activationWords.has(firstWord.replace(/[.|,|!|?]/g, '')) && !isReply) return;
 
   ctx.replyWithChatAction("typing");
 
