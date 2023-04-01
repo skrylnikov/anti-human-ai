@@ -52,8 +52,8 @@ const blackList = new Set([
 ]);
 
 
-bot.on(":text", async (ctx) => {
-  if(ctx.message?.from?.id && blackList.has(ctx.message?.from?.id)) return;
+bot.on("message:text", async (ctx) => {
+  if (ctx.message?.from?.id && blackList.has(ctx.message?.from?.id)) return;
   const rawText = ctx.message?.text;
   if (!rawText) return;
 
@@ -61,6 +61,8 @@ bot.on(":text", async (ctx) => {
 
   const [firstWord, secondWord, ...wordList] = rawText.split(' ');
   const clearFirstWord = firstWord.toLowerCase().replace(/[.|,|!|?]/g, '');
+
+  if (!firstWord || !secondWord || wordList.length < 3) return;
 
   if (!activationWords.has(clearFirstWord) && !isReply) return;
 
@@ -71,7 +73,7 @@ bot.on(":text", async (ctx) => {
 
   const clearSecondWord = secondWord.toLowerCase().replace(/[.|,|!|?]/g, '');
 
-  const text = isReply ? rawText : [...(hackMap.has(clearSecondWord) ? [] :[secondWord]), ...wordList].join(' ');
+  const text = isReply ? rawText : [...(hackMap.has(clearSecondWord) ? [] : [secondWord]), ...wordList].join(' ');
 
   messages.push({
     role: 'user',
@@ -85,11 +87,10 @@ bot.on(":text", async (ctx) => {
 
   const resultMessage = result.data.choices[0].message?.content;
 
-  if(resultMessage) {
-    const message = await ctx.reply(resultMessage, { 
-      reply_to_message_id: ctx.message?.message_id, 
+  if (resultMessage) {
+    const message = await ctx.reply(resultMessage, {
+      reply_to_message_id: ctx.message?.message_id,
     });
-    console.log(messages)
     messages.push({
       role: 'assistant',
       content: resultMessage,
