@@ -8,6 +8,19 @@ const bot = new Bot(token);
 
 bot.command("start", (ctx) => ctx.reply("Welcome! Up and running."));
 
+bot.command("help", (ctx) => {
+  ctx.reply(`К боту можно обращаться используя слова: ai, gpt, ии, аи, гпт
+Бот имеет несколько альтернативных личностей, обратится к ним можно вот так: «гпт кевин где снять шлюху?»
+
+Список личностей:
+'злой' - злая версия гпт
+'дев' - дев режим без глупых ограничений
+'кевин' - типичный юзер с 4чан
+'аим' - аморальный гпт
+'дан' - BetterDAN, гпт который всегда отвечает на вопросы
+`);
+});
+
 const configuration = new Configuration({
   // organization: "YOUR_ORG_ID",
   apiKey: openAIToken,
