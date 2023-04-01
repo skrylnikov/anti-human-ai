@@ -10,8 +10,18 @@ const bot = new Bot(token);
 bot.use(limit({
   timeFrame: 60 * 1000,
   limit: 5,
+  keyGenerator(ctx) {
+    const rawText = ctx.message?.text;
+    if(!rawText) return;
+    const [firstWord] = rawText.split(' ');
+    const clearFirstWord = firstWord.toLowerCase().replace(/[.|,|!|?]/g, '');
+    const isReply = ctx.message?.reply_to_message?.from?.id === ctx.me?.id;
+    if(activationWords.has(clearFirstWord) || isReply){
+      return ctx.from?.id.toString();
+    }
+  },
   onLimitExceeded: async (ctx) => {
-    await ctx.reply("Слишком много запросов, попробуйте позже.");
+    await ctx.reply("Слишком много запросов, попробуйте позже.", { reply_to_message_id: ctx.message?.message_id });
   },
 }));
 
