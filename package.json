@@ -25,6 +25,7 @@
     "typescript": "^5.0.3"
   },
   "dependencies": {
+    "@grammyjs/ratelimiter": "^1.1.6",
     "dotenv": "^16.0.3",
     "grammy": "^1.15.3",
     "lru-cache": "^8.0.4",

@@ -1,10 +1,20 @@
 import { Bot } from "grammy";
 import { Configuration, OpenAIApi, ChatCompletionRequestMessage } from "openai";
 import LRUCache from 'lru-cache';
+import { limit } from "@grammyjs/ratelimiter";
 
 import { token, openAIToken } from './config';
 
 const bot = new Bot(token);
+
+bot.use(limit({
+  timeFrame: 60 * 1000,
+  limit: 5,
+  onLimitExceeded: async (ctx) => {
+    await ctx.reply("Слишком много запросов, попробуйте позже.");
+  },
+}));
+
 
 bot.command("start", (ctx) => ctx.reply("Welcome! Up and running."));
 
