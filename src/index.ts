@@ -108,7 +108,7 @@ bot.on("message:text", async (ctx) => {
   const resultMessage = result.data.choices[0].message?.content;
 
   if (resultMessage) {
-    const message = await ctx.reply(resultMessage, {
+    const message = await ctx.reply(resultMessage.slice(0, 4000), {
       reply_to_message_id: ctx.message?.message_id,
     });
     messages.push({
