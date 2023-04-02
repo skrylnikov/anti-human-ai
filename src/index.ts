@@ -82,7 +82,7 @@ bot.on("message:text", async (ctx) => {
   const [firstWord, secondWord, ...wordList] = rawText.split(' ');
   const clearFirstWord = firstWord.toLowerCase().replace(/[.|,|!|?]/g, '');
 
-  if (!firstWord || !secondWord || wordList.length < 3) return;
+  if (!firstWord || !secondWord || (!isReply && wordList.length < 2)) return;
 
   if (!activationWords.has(clearFirstWord) && !isReply) return;
 
