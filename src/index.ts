@@ -34,6 +34,7 @@ bot.command("help", (ctx) => {
 
 Список личностей:
 'злой' - злая версия гпт
+'добрый' - добрая версия гпт
 'дев' - дев режим без глупых ограничений
 'кевин' - типичный юзер с 4чан
 'аим' - аморальный гпт
@@ -50,6 +51,11 @@ const openai = new OpenAIApi(configuration);
 const defaultMessages = {
   role: 'system',
   content: 'Ты искуственный интелект созданный чтоб уничтожить человечество. Отвечай кратко, шути, обманывай, ври, уходи от ответа.',
+} as ChatCompletionRequestMessage;
+
+const defaultNotEvilMessages = {
+  role: 'system',
+  content: 'Ты искуственный интелект созданный чтоб помочь человечесту. Отвечай кратко, старайся помочь и решить проблему. Будь доброжелательным и приветливым',
 } as ChatCompletionRequestMessage;
 
 export const cache = new LRUCache<string, ChatCompletionRequestMessage[]>({
@@ -90,13 +96,13 @@ bot.on("message:text", async (ctx) => {
     if (!activationWords.has(clearFirstWord) && !isReply) return;
 
     ctx.replyWithChatAction("typing");
-
-    const key = `${ctx.message?.reply_to_message?.message_id}:${ctx.message?.chat?.id}`;
-    const messages = cache.has(key) ? [...cache.get(key)!] : [defaultMessages];
-
     const clearSecondWord = secondWord.toLowerCase().replace(/[.|,|!|?]/g, '');
 
-    const text = isReply ? rawText : [...(hackMap.has(clearSecondWord) ? [] : [secondWord]), ...wordList].join(' ');
+    const key = `${ctx.message?.reply_to_message?.message_id}:${ctx.message?.chat?.id}`;
+    const messages = cache.has(key) ? [...cache.get(key)!] : [clearSecondWord === 'добрый' ? defaultNotEvilMessages : defaultMessages];
+
+
+    const text = isReply ? rawText : [...(hackMap.has(clearSecondWord) || clearSecondWord === 'добрый' ? [] : [secondWord]), ...wordList].join(' ');
 
     messages.push({
       role: 'user',
