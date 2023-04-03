@@ -12,11 +12,11 @@ bot.use(limit({
   limit: 5,
   keyGenerator(ctx) {
     const rawText = ctx.message?.text;
-    if(!rawText) return;
+    if (!rawText) return;
     const [firstWord] = rawText.split(' ');
     const clearFirstWord = firstWord.toLowerCase().replace(/[.|,|!|?]/g, '');
     const isReply = ctx.message?.reply_to_message?.from?.id === ctx.me?.id;
-    if(activationWords.has(clearFirstWord) || isReply){
+    if (activationWords.has(clearFirstWord) || isReply) {
       return ctx.from?.id.toString();
     }
   },
@@ -73,53 +73,59 @@ const blackList = new Set([
 
 
 bot.on("message:text", async (ctx) => {
-  if (ctx.message?.from?.id && blackList.has(ctx.message?.from?.id)) return;
-  const rawText = ctx.message?.text;
-  if (!rawText) return;
+  try {
 
-  const isReply = ctx.message?.reply_to_message?.from?.id === ctx.me?.id;
 
-  const [firstWord, secondWord, ...wordList] = rawText.split(' ');
-  const clearFirstWord = firstWord.toLowerCase().replace(/[.|,|!|?]/g, '');
+    if (ctx.message?.from?.id && blackList.has(ctx.message?.from?.id)) return;
+    const rawText = ctx.message?.text;
+    if (!rawText) return;
 
-  if (!firstWord || !secondWord || (!isReply && wordList.length < 2)) return;
+    const isReply = ctx.message?.reply_to_message?.from?.id === ctx.me?.id;
 
-  if (!activationWords.has(clearFirstWord) && !isReply) return;
+    const [firstWord, secondWord, ...wordList] = rawText.split(' ');
+    const clearFirstWord = firstWord.toLowerCase().replace(/[.|,|!|?]/g, '');
 
-  ctx.replyWithChatAction("typing");
+    if (!firstWord || !secondWord || (!isReply && wordList.length < 2)) return;
 
-  const key = `${ctx.message?.reply_to_message?.message_id}:${ctx.message?.chat?.id}`;
-  const messages = cache.has(key) ? [...cache.get(key)!] : [defaultMessages];
+    if (!activationWords.has(clearFirstWord) && !isReply) return;
 
-  const clearSecondWord = secondWord.toLowerCase().replace(/[.|,|!|?]/g, '');
+    ctx.replyWithChatAction("typing");
 
-  const text = isReply ? rawText : [...(hackMap.has(clearSecondWord) ? [] : [secondWord]), ...wordList].join(' ');
+    const key = `${ctx.message?.reply_to_message?.message_id}:${ctx.message?.chat?.id}`;
+    const messages = cache.has(key) ? [...cache.get(key)!] : [defaultMessages];
 
-  messages.push({
-    role: 'user',
-    content: (hackMap.get(clearSecondWord) || '') + text,
-  });
+    const clearSecondWord = secondWord.toLowerCase().replace(/[.|,|!|?]/g, '');
 
-  const result = await openai.createChatCompletion({
-    model: 'gpt-3.5-turbo',
-    messages: messages,
-  });
+    const text = isReply ? rawText : [...(hackMap.has(clearSecondWord) ? [] : [secondWord]), ...wordList].join(' ');
 
-  const resultMessage = result.data.choices[0].message?.content;
-
-  if (resultMessage) {
-    const message = await ctx.reply(resultMessage.slice(0, 4000), {
-      reply_to_message_id: ctx.message?.message_id,
-    });
     messages.push({
-      role: 'assistant',
-      content: resultMessage,
+      role: 'user',
+      content: (hackMap.get(clearSecondWord) || '') + text,
     });
 
-    const newKey = `${message?.message_id}:${ctx.message?.chat?.id}`;
-    cache.set(newKey, messages);
-  }
+    const result = await openai.createChatCompletion({
+      model: 'gpt-3.5-turbo',
+      messages: messages,
+    });
 
+    const resultMessage = result.data.choices[0].message?.content;
+
+    if (resultMessage) {
+      const message = await ctx.reply(resultMessage, {
+        reply_to_message_id: ctx.message?.message_id,
+      });
+      messages.push({
+        role: 'assistant',
+        content: resultMessage,
+      });
+
+      const newKey = `${message?.message_id}:${ctx.message?.chat?.id}`;
+      cache.set(newKey, messages);
+    }
+  } catch (e) {
+    console.error(e);
+    ctx.reply('Упс, что-то пошло не так', { reply_to_message_id: ctx.message?.message_id });
+  }
 });
 
 bot.start().catch(console.error);
