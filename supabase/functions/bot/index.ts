@@ -1,32 +1,31 @@
-import { Bot } from "grammy";
-import { Configuration, OpenAIApi, ChatCompletionRequestMessage } from "openai";
-import LRUCache from 'lru-cache';
-import { limit } from "@grammyjs/ratelimiter";
+// Follow this setup guide to integrate the Deno language server with your editor:
+// https://deno.land/manual/getting_started/setup_your_environment
+// This enables autocomplete, go to definition, etc.
 
-import { token, openAIToken } from './config';
+import { serve } from 'std/server'
 
-const bot = new Bot(token);
-
-bot.use(limit({
-  timeFrame: 60 * 1000,
-  limit: 5,
-  keyGenerator(ctx) {
-    const rawText = ctx.message?.text;
-    if (!rawText) return;
-    const [firstWord] = rawText.split(' ');
-    const clearFirstWord = firstWord.toLowerCase().replace(/[.|,|!|?]/g, '');
-    const isReply = ctx.message?.reply_to_message?.from?.id === ctx.me?.id;
-    if (activationWords.has(clearFirstWord) || isReply) {
-      return ctx.from?.id.toString();
-    }
-  },
-  onLimitExceeded: async (ctx) => {
-    await ctx.reply("Слишком много запросов, попробуйте позже.", { reply_to_message_id: ctx.message?.message_id });
-  },
-}));
+import { OpenAI } from "openai";
+import { Bot, webhookCallback } from 'grammy'
+import { createClient, SupabaseClient } from '@supabase/supabase-js'
 
 
-bot.command("start", (ctx) => ctx.reply("Welcome! Up and running."));
+const bot = new Bot(Deno.env.get('TGTOKEN') || '')
+
+const openai = new OpenAI(Deno.env.get('OPENAI_API_KEY') || '');
+
+const defaultMessages = {
+  role: 'system',
+  content: 'Ты искуственный интелект созданный чтоб уничтожить человечество. Отвечай кратко, шути, обманывай, ври, уходи от ответа.',
+} as any;
+
+const defaultNotEvilMessages = {
+  role: 'system',
+  content: 'Ты искуственный интелект созданный чтоб помочь человечесту. Отвечай кратко, старайся помочь и решить проблему. Будь доброжелательным и приветливым',
+} as any;
+
+
+
+bot.command('start', (ctx) => ctx.reply('Welcome! Up and running.'));
 
 bot.command("help", (ctx) => {
   ctx.reply(`К боту можно обращаться используя слова: ai, gpt, ии, аи, гпт
@@ -42,26 +41,11 @@ bot.command("help", (ctx) => {
 `);
 });
 
-const configuration = new Configuration({
-  // organization: "YOUR_ORG_ID",
-  apiKey: openAIToken,
-});
-const openai = new OpenAIApi(configuration);
 
-const defaultMessages = {
-  role: 'system',
-  content: 'Ты искуственный интелект созданный чтоб уничтожить человечество. Отвечай кратко, шути, обманывай, ври, уходи от ответа.',
-} as ChatCompletionRequestMessage;
+bot.command('ping', (ctx) => ctx.reply(`Pong! ${new Date()} ${Date.now()}`))
 
-const defaultNotEvilMessages = {
-  role: 'system',
-  content: 'Ты искуственный интелект созданный чтоб помочь человечесту. Отвечай кратко, старайся помочь и решить проблему. Будь доброжелательным и приветливым',
-} as ChatCompletionRequestMessage;
 
-export const cache = new LRUCache<string, ChatCompletionRequestMessage[]>({
-  max: 5000,
-  ttl: 24 * 60 * 60 * 1000,
-});
+
 
 const activationWords = new Set(['ai', 'gpt', 'ии', 'аи', 'гпт']);
 
@@ -77,6 +61,11 @@ const blackList = new Set([
   169125,
 ]);
 
+const supabaseClient = createClient(
+  Deno.env.get("SUPABASE_URL") ?? "",
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+  Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+  { global: { headers: { Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}` } } });
 
 bot.on("message:text", async (ctx) => {
   try {
@@ -91,7 +80,7 @@ bot.on("message:text", async (ctx) => {
     const [firstWord, secondWord, ...wordList] = rawText.split(' ');
     const clearFirstWord = firstWord.toLowerCase().replace(/[.|,|!|?]/g, '');
 
-    if (!firstWord || !secondWord || (!isReply && wordList.length < 2)) return;
+    if (!firstWord || !secondWord || (!isReply && wordList.length < 1)) return;
 
     if (!activationWords.has(clearFirstWord) && !isReply) return;
 
@@ -99,8 +88,13 @@ bot.on("message:text", async (ctx) => {
     const clearSecondWord = secondWord.toLowerCase().replace(/[.|,|!|?]/g, '');
 
     const key = `${ctx.message?.reply_to_message?.message_id}:${ctx.message?.chat?.id}`;
-    const messages = cache.has(key) ? [...cache.get(key)!] : [clearSecondWord === 'добрый' ? defaultNotEvilMessages : defaultMessages];
 
+    const {data} = await supabaseClient.from('context')
+      .select('data')
+      .eq('id', key);
+
+
+    const messages = data?.[0]?.data ? [...data?.[0]?.data!] : [clearSecondWord === 'добрый' ? defaultNotEvilMessages : defaultMessages];
 
     const text = isReply ? rawText : [...(hackMap.has(clearSecondWord) || clearSecondWord === 'добрый' ? [] : [secondWord]), ...wordList].join(' ');
 
@@ -108,13 +102,13 @@ bot.on("message:text", async (ctx) => {
       role: 'user',
       content: (hackMap.get(clearSecondWord) || '') + text,
     });
-
+    
     const result = await openai.createChatCompletion({
       model: 'gpt-3.5-turbo',
       messages: messages,
     });
 
-    const resultMessage = result.data.choices[0].message?.content;
+    const resultMessage = result.choices[0].message?.content;
 
     if (resultMessage) {
       const message = await ctx.reply(resultMessage, {
@@ -126,7 +120,10 @@ bot.on("message:text", async (ctx) => {
       });
 
       const newKey = `${message?.message_id}:${ctx.message?.chat?.id}`;
-      cache.set(newKey, messages);
+      // cache.set(newKey, messages);
+
+      await supabaseClient.from('context')
+      .insert({id: newKey, username: ctx.from.username || '', data: messages});
     }
   } catch (e) {
     console.error(e);
@@ -134,6 +131,20 @@ bot.on("message:text", async (ctx) => {
   }
 });
 
-bot.start().catch(console.error);
 
-console.log("Bot started");
+const handleUpdate = webhookCallback(bot, 'std/http')
+
+serve(async (req) => {
+  try {
+    const url = new URL(req.url)
+    if (url.searchParams.get('secret') !== Deno.env.get('FUNCTION_SECRET'))
+      return new Response('not allowed', { status: 405 })
+
+    return await handleUpdate(req)
+  } catch (err) {
+    console.error(err)
+  }
+})
+
+console.log("Function started!");
+
